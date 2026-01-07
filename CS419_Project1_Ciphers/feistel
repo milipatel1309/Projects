@@ -1,0 +1,77 @@
+#!/usr/bin/python3
+import sys, argparse
+
+def sdbm_hash(s: str) -> int:
+    h = 0
+    for ch in s.encode('utf-8'):
+        h = (ch + ((h << 6) & 0xFFFFFFFFFFFFFFFF) + ((h << 16) & 0xFFFFFFFFFFFFFFFF) - h) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+def rot64(x: int, r: int) -> int:
+    r &= 63
+    return ((x >> r) | ((x << (64 - r)) & 0xFFFFFFFFFFFFFFFF)) & 0xFFFFFFFFFFFFFFFF
+
+def pkcs7_pad(data: bytes, block=16) -> bytes:
+    pad = block - (len(data) % block)
+    if pad == 0: pad = block
+    return data + bytes([pad])*pad
+
+def pkcs7_unpad(data: bytes, block=16) -> bytes:
+    if not data or len(data) % block != 0: sys.exit("error: bad ciphertext length")
+    pad = data[-1]
+    if pad < 1 or pad > block or data[-pad:] != bytes([pad])*pad: sys.exit("error: bad padding")
+    return data[:-pad]
+
+def round_func(x: int, k: int) -> int:
+    temp = ((x ^ k) * 0x00A3B2C1) & 0xFFFFFFFFFFFFFFFF
+    return rot64(temp, 23)
+
+def derive_round_keys(main_key: int) -> list[int]:
+    a, c = 1103515245, 12345
+    keys = [main_key & 0xFFFFFFFFFFFFFFFF]
+    for _ in range(1, 10):
+        keys.append((keys[-1]*a + c) & 0xFFFFFFFFFFFFFFFF)
+    return keys
+
+def enc_block(b: bytes, rk: list[int], D=False) -> bytes:
+    L = int.from_bytes(b[:8], "big"); R = int.from_bytes(b[8:], "big")
+    for i in range(10):
+        L, R = R, (L ^ round_func(R, rk[i])) & 0xFFFFFFFFFFFFFFFF
+        if D: print(f"round {i}: L={L:016x} R={R:016x}")
+    L, R = R, L
+    return L.to_bytes(8,"big") + R.to_bytes(8,"big")
+
+def dec_block(b: bytes, rk: list[int], D=False) -> bytes:
+    L = int.from_bytes(b[:8], "big"); R = int.from_bytes(b[8:], "big")
+    for i in range(9,-1,-1):
+        L, R = R, (L ^ round_func(R, rk[i])) & 0xFFFFFFFFFFFFFFFF
+        if D: print(f"round {i}: L={L:016x} R={R:016x}")
+    L, R = R, L
+    return L.to_bytes(8,"big") + R.to_bytes(8,"big")
+
+def main():
+    p = argparse.ArgumentParser(prog="feistel", description="10-round Feistel, 128-bit blocks, PKCS#7 padding.")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("-e", action="store_true"); g.add_argument("-d", action="store_true")
+    p.add_argument("password"); p.add_argument("infile"); p.add_argument("outfile")
+    p.add_argument("-D", action="store_true"); p.add_argument("-k", action="store_true"); p.add_argument("-i", action="store_true")
+    a = p.parse_args()
+    if a.i: print("feistel: 10-round Feistel on 128-bit blocks; keys from sdbm(password), PKCS#7 padding."); return
+    key = sdbm_hash(a.password); rkeys = derive_round_keys(key)
+    if a.k:
+        for i, rk in enumerate(rkeys): print(f"k[{i}] = {rk:016x}")
+    with open(a.infile, "rb") as fi, open(a.outfile, "wb") as fo:
+        if a.e:
+            data = pkcs7_pad(fi.read(), 16); out = bytearray()
+            for i in range(0, len(data), 16): out.extend(enc_block(data[i:i+16], rkeys, a.D))
+            fo.write(out)
+        else:
+            data = fi.read()
+            if len(data)%16!=0: sys.exit("error: ciphertext length not multiple of 16")
+            out = bytearray()
+            for i in range(0, len(data), 16): out.extend(dec_block(data[i:i+16], rkeys, a.D))
+            fo.write(pkcs7_unpad(bytes(out), 16))
+
+if __name__ == "__main__":
+    try: main()
+    except BrokenPipeError: pass

@@ -1,0 +1,62 @@
+#!/usr/bin/python3
+import sys, argparse, secrets, struct
+
+def sdbm_hash(s: str) -> int:
+    h = 0
+    for ch in s.encode('utf-8'):
+        h = (ch + ((h << 6) & 0xFFFFFFFFFFFFFFFF) + ((h << 16) & 0xFFFFFFFFFFFFFFFF) - h) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+class LCG8:
+    a, c, m = 1103515245, 12345, 256
+    def __init__(self, seed: int): self.x = seed & 0xFF
+    def next_byte(self): self.x = (self.a*self.x + self.c) % self.m; return self.x
+
+def main():
+    p = argparse.ArgumentParser(prog="vcrypt", description="Stream cipher with 8-byte IV header (little-endian).")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("-e", action="store_true"); g.add_argument("-d", action="store_true")
+    p.add_argument("password"); p.add_argument("infile"); p.add_argument("outfile")
+    p.add_argument("-D", action="store_true"); p.add_argument("-s", action="store_true"); p.add_argument("-z", action="store_true")
+    p.add_argument("-i", action="store_true")
+    a = p.parse_args()
+    if a.i: print("vcrypt: XOR stream cipher with 8-byte IV header (little-endian); seed = sdbm(password) XOR IV."); return
+    if a.e:
+        iv = 0 if a.z else int.from_bytes(secrets.token_bytes(8), "little")
+        seed = sdbm_hash(a.password) ^ iv
+        if a.s: print(f"iv={iv} seed={seed}")
+        rng = LCG8(seed)
+        with open(a.infile, "rb") as fi, open(a.outfile, "wb") as fo:
+            fo.write(struct.pack("<Q", iv))
+            if a.D:
+                while (b := fi.read(1)):
+                    ks = rng.next_byte(); out = bytes([b[0]^ks]); print(f"{b[0]:02x} ^ {ks:02x} -> {out[0]:02x}")
+                    fo.write(out)
+            else:
+                while True:
+                    buf = bytearray(fi.read(65536))
+                    if not buf: break
+                    for i in range(len(buf)): buf[i] ^= rng.next_byte()
+                    fo.write(buf)
+    else:
+        with open(a.infile, "rb") as fi, open(a.outfile, "wb") as fo:
+            head = fi.read(8)
+            if len(head)!=8: sys.exit("error: ciphertext too short (no IV)")
+            iv = struct.unpack("<Q", head)[0]
+            seed = sdbm_hash(a.password) ^ iv
+            if a.s: print(f"iv={iv} seed={seed}")
+            rng = LCG8(seed)
+            if a.D:
+                while (b := fi.read(1)):
+                    ks = rng.next_byte(); out = bytes([b[0]^ks]); print(f"{b[0]:02x} ^ {ks:02x} -> {out[0]:02x}")
+                    fo.write(out)
+            else:
+                while True:
+                    buf = bytearray(fi.read(65536))
+                    if not buf: break
+                    for i in range(len(buf)): buf[i] ^= rng.next_byte()
+                    fo.write(buf)
+
+if __name__ == "__main__":
+    try: main()
+    except BrokenPipeError: pass
