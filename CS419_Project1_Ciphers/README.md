@@ -9,3 +9,6 @@ This project implements three encryption utilities as part of a computer securit
 ## Build
 ```bash
 make
+
+## Testing
+Correctness is verified by encrypting and decrypting files and comparing results using `cmp` to ensure byte-for-byte equality.
