@@ -1,0 +1,16 @@
+# build artifacts
+*.o
+*.out
+
+# executables
+scrypt
+vcrypt
+feistel
+
+# generated files
+*.enc
+*.dec
+
+# OS junk
+.DS_Store
+Thumbs.db
