@@ -1,20 +1,29 @@
-# Stream and Feistel Ciphers (CS 419)
+# 🔒 Stream & Feistel Ciphers (CS 419)
 
-This project implements three encryption utilities as part of a computer security assignment:
+This project implements three encryption utilities as part of a Computer Security assignment, focusing on stream ciphers, initialization vectors, and block cipher design.
 
-- **scrypt**: stream cipher using a password-derived seed and linear congruential keystream
-- **vcrypt**: stream cipher with an initialization vector (IV)
-- **feistel**: 10-round Feistel block cipher with PKCS#7 padding
+## Overview
 
-### 🔐 Stream & Feistel Ciphers (CS 419)
-Implemented stream ciphers with and without initialization vectors, and a 10-round Feistel block cipher with PKCS#7 padding. Includes file-based encryption/decryption and correctness validation using `cmp`.
+The project includes the following programs:
 
-**Tools:** C, file I/O, bitwise operations, Makefile  
-📂 `/CS419_Project1_Ciphers`
+- **scrypt**: Stream cipher using a password-derived seed and a linear congruential keystream generator  
+- **vcrypt**: Stream cipher with an initialization vector (IV) to prevent keystream reuse  
+- **feistel**: 10-round Feistel block cipher operating on 128-bit blocks with PKCS#7 padding  
 
-## Build
-```bash
-make
+Each program supports file-based encryption and decryption and is designed to behave consistently across platforms.
 
-## Testing
-Correctness is verified by encrypting and decrypting files and comparing results using `cmp` to ensure byte-for-byte equality.
+## Implementation Details
+
+- Passwords are converted to numeric seeds using the **sdbm hash function**
+- Keystream generation uses a **linear congruential generator (LCG)**
+- Initialization vectors are written in **little-endian format**
+- The Feistel cipher derives round keys using an LCG-based key schedule
+- Padding follows the **PKCS#7** specification
+- Correctness is validated using byte-for-byte comparison via `cmp`
+
+## Language & Environment
+
+- **Language**: C  
+- **Build System**: Makefile  
+- **Platform**: POSIX-compatible (tested on Linux/macOS)
+
