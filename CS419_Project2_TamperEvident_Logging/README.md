@@ -28,3 +28,8 @@ This project implements a blockchain-based network logging system designed to de
 
 ```bash
 make
+## Usage
+
+Start the logging server:
+```bash
+./logserver
