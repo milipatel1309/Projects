@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+import hashlib, base64, time, sys, os, socket
+
+def sha256_digest(s: str) -> bytes:
+    return hashlib.sha256(s.encode('utf-8')).digest()
+
+def b64tail24(s: str) -> str:
+    return base64.b64encode(sha256_digest(s)).decode()[-24:]
+
+s = socket.socket()
+s.bind(("localhost", 0))
+s.listen(5)
+print("Server listening on port:", s.getsockname()[1])
+
+while True:
+    c, a = s.accept()
+    try:
+        line = c.recv(400).decode().strip()
+        if not line:
+            c.send(b"invalid empty\n")
+            c.close()
+            continue
+
+        # validate PoW (SHA-256, first 21 bits zero)
+        v = int.from_bytes(sha256_digest(line), 'big')
+        if (v >> (256 - 21)) != 0:
+            c.send(b"invalid PoW\n")
+            c.close()
+            continue
+
+        if ":" not in line:
+            c.send(b"invalid format\n")
+            c.close()
+            continue
+
+        txt = line.split(":", 1)[1]
+        if "text" in txt.lower():
+            c.send(b"rejected\n")
+            c.close()
+            continue
+
+        # initialize / verify files
+        if not os.path.exists("log.txt"):
+            head = "start"
+        else:
+            if not os.path.exists("loghead.txt"):
+                c.send(b"failed: missing head\n")
+                c.close()
+                continue
+            head = open("loghead.txt").read().strip() or "start"
+
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry = f"{ts} - {head} {txt}"
+        with open("log.txt", "a") as f:
+            f.write(entry + "\n")
+
+        newhead = b64tail24(entry)
+        with open("loghead.txt", "w") as f:
+            f.write(newhead)
+
+        c.send(b"ok\n")
+    except Exception as e:
+        c.send(f"error: {e}\n".encode())
+    finally:
+        c.close()
+

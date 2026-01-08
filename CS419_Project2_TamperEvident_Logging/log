@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+import hashlib, socket, sys, time, string, itertools
+
+def sha256_digest(s: str) -> bytes:
+    return hashlib.sha256(s.encode('utf-8')).digest()
+
+def valid_pow(s: str) -> bool:
+    # check if first 21 bits are 0
+    val = int.from_bytes(sha256_digest(s), 'big')
+    return (val >> (256 - 21)) == 0
+
+if len(sys.argv) < 3:
+    print("usage: log <port> <message>")
+    sys.exit(1)
+
+port = int(sys.argv[1])
+msg = " ".join(sys.argv[2:])   # handle multi-word input
+msg = msg.replace("\n", " ").replace("\t", " ").replace("\r", " ").replace("\v", " ").replace("\f", " ")
+
+if len(msg.encode()) > 256:
+    print("error: message too long")
+    sys.exit(1)
+
+if "text" in msg.lower():
+    print("rejected")
+    sys.exit(1)
+
+chars = string.ascii_letters + string.digits
+nonce = ""
+
+# brute-force PoW
+found = False
+for n in range(1, 8):
+    for c in itertools.product(chars, repeat=n):
+        nonce = "".join(c)
+        if valid_pow(nonce + ":" + msg):
+            found = True
+            break
+    if found:
+        break
+
+full = f"{nonce}:{msg}"
+
+try:
+    s = socket.socket()
+    s.connect(("localhost", port))
+    s.sendall(full.encode() + b"\n")
+    resp = s.recv(200).decode().strip()
+    print(resp)
+    s.close()
+except Exception as e:
+    print("connection error:", e)
+    sys.exit(1)
+
