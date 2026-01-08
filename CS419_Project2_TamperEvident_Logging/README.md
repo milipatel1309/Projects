@@ -1,27 +1,30 @@
-# ⛓️ Tamper-Evident Logging with Proof-of-Work (CS 419)
+# Tamper-Evident Logging with Proof-of-Work (CS 419)
 
-Blockchain-based network logging service that uses proof-of-work to rate-limit clients and provides a validation tool to detect tampering.
+This project implements a blockchain-based network logging system designed to detect log tampering and prevent message flooding using proof-of-work. The system consists of a logging client, a logging server, and a verification utility.
 
 ## Components
 
-- **logserver**: accepts log messages from clients, appends entries to a hash-chained log (blockchain-style), and enforces proof-of-work before accepting messages.
-- **log**: client utility to submit messages to the server with required proof-of-work.
-- **checklog**: validates the integrity of the log by verifying the hash chain and detecting modifications.
+- **log**  
+  Client utility that submits log messages to the server. Each message includes a proof-of-work value to rate-limit submissions and deter spam.
 
-## Key Ideas Implemented
+- **logserver**  
+  Server that accepts client messages and stores them in an append-only log structured as a blockchain. Each entry includes a hash of the previous entry to ensure tamper evidence.
 
-- Hash-chained (tamper-evident) log entries
-- Proof-of-work to prevent message flooding / abuse
-- Validation utility to confirm log integrity end-to-end
+- **checklog**  
+  Verification tool that scans a log file and validates hash chaining and proof-of-work to detect modification or corruption.
+
+## Implementation Details
+
+- Each log entry contains:
+  - Timestamp
+  - Message data
+  - Previous block hash
+  - Proof-of-work nonce
+- Cryptographic hashing is used to link log entries.
+- Proof-of-work enforces computational cost per log entry.
+- Any alteration to the log invalidates subsequent hashes.
 
 ## Build
 
 ```bash
 make
-
-
-Usage (example)
-./logserver
-./log "example message"
-./checklog
-
